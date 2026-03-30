@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Sysbi CRM Intelligence",
+  "version": "1.0",
+  "description": "AI-powered lead prioritization for Sysbi CRM.",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.sysbi.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
