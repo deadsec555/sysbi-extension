@@ -783,69 +783,295 @@ add_bullets([
 doc.add_page_break()
 
 # ================= REMEDIATION =================
-add_heading("11. Prepared Remediation Scripts — NOT EXECUTED, Pending Approval", level=1)
+add_heading("11. Remediation Roadmap — NOT EXECUTED, Pending Approval", level=1)
 add_para(
-    "Each script below targets a specific named resource or principal identified in this report. None "
-    "have been run. Each requires management approval, change-control sign-off, and validation in a "
-    "non-production context before execution.",
+    "This section is a complete remediation plan, not just a script library: a phased timeline, an "
+    "ownership model, and — for every item — the pre-requisites, the exact command, how to validate the "
+    "fix worked, and how to roll it back if something breaks. Nothing in this section has been run. Every "
+    "command requires management approval, change-control sign-off, and validation in a non-production "
+    "context first.",
     italic=True,
 )
 
-remediations = [
-    ("R1/R5 — Remove orphaned role assignments",
-     'Remove-AzRoleAssignment -ObjectId "e1cb2806-57c9-435e-bd98-0a4788fa8abf" -RoleDefinitionName "Owner" -Scope "/subscriptions/<sub-id>"\n'
-     'Remove-AzRoleAssignment -ObjectId "3e6afd56-3e57-45dc-b795-2fef39e9ceeb" -RoleDefinitionName "Contributor" -Scope "/subscriptions/<sub-id>/resourceGroups/gipl-slice-ml-india"\n'
-     '# Repeat for each 2fdaeb76-efd2-4d8a-9354-75c3c3093319 assignment listed in Section 2.2'),
-    ("R2 — Restrict Key Vault network access (kv-azureosi540118198852)",
-     'Update-AzKeyVaultNetworkRuleSet -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" -DefaultAction Deny -Bypass AzureServices\n'
-     'Update-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" -EnablePurgeProtection -EnableRbacAuthorization'),
-    ("R3 — Create Log Analytics workspace and wire up diagnostics",
-     'New-AzOperationalInsightsWorkspace -ResourceGroupName <rg> -Name <law-name> -Location <region> -Sku PerGB2018\n'
-     '# Apply Set-AzDiagnosticSetting to: kv-azureosi540118198852, siemstorageaccount1, stazureosiai540118198852,\n'
-     '# all 10 named Cognitive Services accounts in Section 8.1, and both ML workspaces in Section 8.2'),
-    ("R4/R9 — Disable public network access on named AI/ML resources",
-     '# Apply to each of the 10 Cognitive Services accounts listed in Section 8.1:\n'
-     'Update-AzCognitiveServicesAccount -ResourceGroupName <rg> -Name <account-name> -PublicNetworkAccess Disabled\n'
-     '# Apply to both ML workspaces:\n'
-     'Update-AzMLWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "azure_osi_ai_models" -PublicNetworkAccess Disabled\n'
-     'Update-AzMLWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "azure_other_models" -PublicNetworkAccess Disabled\n'
-     '# Requires Private Endpoint + Private DNS zone to be provisioned first to avoid breaking access'),
-    ("R8 — Restrict storage network access and disable shared key auth",
-     'Update-AzStorageAccountNetworkRuleSet -ResourceGroupName "siem" -Name "siemstorageaccount1" -DefaultAction Deny\n'
-     'Set-AzStorageAccount -ResourceGroupName "siem" -Name "siemstorageaccount1" -AllowSharedKeyAccess $false\n'
-     'Update-AzStorageAccountNetworkRuleSet -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" -DefaultAction Deny\n'
-     'Set-AzStorageAccount -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" -AllowSharedKeyAccess $false'),
-    ("R11 — Enable Blob Soft Delete (gipl-azure-subscription)",
-     'Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName "gipl-slice-ml-india" -StorageAccountName "stazureosiai540118198852" -RetentionDays 14\n'
-     'Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName "siem" -StorageAccountName "siemstorageaccount1" -RetentionDays 14'),
-    ("R10 — Apply resource locks to named critical resources",
-     'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "kv-azureosi540118198852" -ResourceType "Microsoft.KeyVault/vaults"\n'
-     'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "stazureosiai540118198852" -ResourceType "Microsoft.Storage/storageAccounts"\n'
-     'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "siem" -ResourceName "siemstorageaccount1" -ResourceType "Microsoft.Storage/storageAccounts"\n'
-     '# Apply similarly to both ML workspaces (azure_osi_ai_models, azure_other_models)'),
-    ("R7 — Scope down service principal privileges",
-     '# Review azure_osi_ai_models and azure_other_models actual usage, then replace broad Contributor\n'
-     '# grants with narrowly-scoped custom roles limited to the specific data actions each automation flow requires.\n'
-     '# Example: remove RG-level Contributor once equivalent fine-grained roles are confirmed sufficient:\n'
-     'Remove-AzRoleAssignment -ObjectId <azure_osi_ai_models-object-id> -RoleDefinitionName "Contributor" -Scope "/subscriptions/<sub-id>/resourceGroups/gipl-slice-ml-india"'),
-    ("R10/R12 — Enforce tagging via Azure Policy (audit mode initially)",
-     'New-AzPolicyAssignment -Name "require-tag-pod" -PolicyDefinition (Get-AzPolicyDefinition -Name "1e30110a-5ceb-460c-a204-c1c3969c6d62") -Scope "/subscriptions/<sub-id>"\n'
-     '# Built-in "Require a tag on resources" definition, deployed in Audit mode initially'),
-    ("R3 — Subscription security contact (free, zero risk)",
-     'Set-AzSecurityContact -Name "default1" -Email "security-team@slicebank.com" -AlertNotifications On -AlertsToAdmins On'),
-]
+add_heading("11.1 Phased Roadmap", level=2)
+add_table(
+    [
+        ("Phase 0 — Immediate (0–3 days)", "R1, R5, R10 (locks on Key Vault only)",
+         "Stop the bleeding: remove unidentified standing access, lock the Key Vault against deletion. Zero downtime risk."),
+        ("Phase 1 — Week 1", "R2, R3 (security contact + Log Analytics workspace only)",
+         "Harden the Key Vault, stand up logging infrastructure. No application changes yet — purely additive."),
+        ("Phase 2 — Weeks 2–4", "R3 (diagnostics wiring), R6, R8, R11",
+         "Turn on audit trails across all resources; restrict storage network access and shared-key auth; enable Soft Delete. Requires app teams to confirm they don't depend on shared keys."),
+        ("Phase 3 — Weeks 4–8", "R4/R9, R7",
+         "Move AI accounts and ML workspaces behind Private Link and disable public access; right-size service principal permissions. Highest change-risk phase — requires Private Endpoint/DNS pre-work and app-team coordination to avoid breaking integrations."),
+        ("Phase 4 — Ongoing", "R12, R13, recertification",
+         "Tagging policy enforcement, quarterly access recertification, and quarterly re-run of this assessment to track drift."),
+    ],
+    headers=("Phase", "Items", "Rationale / Risk Level"),
+)
 
-for title_text, script in remediations:
+add_heading("11.2 Ownership & Approval Model (proposed — adjust to your org chart)", level=2)
+add_table(
+    [
+        ("R1, R5, R7 (identity changes)", "Identity/IAM owner (e.g., Dev Kudtharkar or Rakshan Shetty — current User Access Administrators)", "Subscription Owner", "CAB / change ticket"),
+        ("R2, R3, R6, R8, R11 (data-plane hardening)", "Platform/Infra engineer on gipl-slice-ml-india", "Engineering Lead", "Change ticket + app-team sign-off"),
+        ("R4/R9 (network isolation)", "Platform/Infra engineer + AI/ML app owners (Pranay Devasani, Venkat V, Hardikkumar Patel)", "Engineering Lead + AI/ML product owner", "CAB + maintenance window"),
+        ("R10, R12, R13 (governance)", "Cloud governance owner", "Engineering Lead", "Standard change ticket"),
+    ],
+    headers=("Remediation Items", "Suggested Executor", "Suggested Approver", "Required Sign-off"),
+)
+add_para(
+    "Note: Dev Kudtharkar and Santosh Kaddu currently hold User Access Administrator at the tenant root "
+    "and are the only identities with rights to action R1/R5/R7 as-is. Recommend at least two-person "
+    "approval for any identity-removal action given the elevated blast radius.",
+    italic=True,
+)
+
+add_heading("11.3 Detailed Remediation Items", level=2)
+
+def add_remediation_item(item_id, title_text, severity, prereqs, script, validation, rollback):
     p = doc.add_paragraph()
-    r = p.add_run("NOT TO BE RUN YET — pending management approval")
+    r = p.add_run(f"{item_id} — {title_text}  ")
     r.bold = True
-    r.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
-    add_heading(title_text, level=3)
+    r.font.size = Pt(12)
+    r2 = p.add_run(f"[{severity}]")
+    r2.bold = True
+    if severity in SEV_COLORS:
+        r2.font.color.rgb = RGBColor.from_string(SEV_COLORS[severity])
+
+    flag = doc.add_paragraph()
+    fr = flag.add_run("NOT TO BE RUN YET — pending management approval")
+    fr.bold = True
+    fr.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+
+    pre = doc.add_paragraph()
+    pre.add_run("Pre-requisites / sequencing: ").bold = True
+    pre.add_run(prereqs)
+
+    sp = doc.add_paragraph()
+    sp.add_run("Remediation command(s):").bold = True
     code_p = doc.add_paragraph()
     code_run = code_p.add_run(script)
     code_run.font.name = 'Consolas'
     code_run.font.size = Pt(9)
+
+    vp = doc.add_paragraph()
+    vp.add_run("Validation after execution: ").bold = True
+    vcode = doc.add_paragraph()
+    vrun = vcode.add_run(validation)
+    vrun.font.name = 'Consolas'
+    vrun.font.size = Pt(9)
+
+    rb = doc.add_paragraph()
+    rb.add_run("Rollback if issues occur: ").bold = True
+    rb.add_run(rollback)
     doc.add_paragraph()
+
+add_remediation_item(
+    "R1", "Remove orphaned Owner role assignment at subscription root",
+    "Critical",
+    "None — this is a pure removal of a non-functioning identity. Confirm via Section 9.1 proof steps "
+    "immediately beforehand that the principal still resolves to nothing, in case it was somehow restored "
+    "in the interim.",
+    'Remove-AzRoleAssignment -ObjectId "e1cb2806-57c9-435e-bd98-0a4788fa8abf" -RoleDefinitionName "Owner" -Scope "/subscriptions/<sub-id>"\n'
+    '# Run once per subscription (Azure Pass - Sponsorship and gipl-azure-subscription)',
+    'Get-AzRoleAssignment -Scope "/subscriptions/<sub-id>" | Where-Object { $_.ObjectId -eq "e1cb2806-57c9-435e-bd98-0a4788fa8abf" }\n'
+    '# Expect: empty result set',
+    "Role assignments can be re-created instantly if needed: "
+    "New-AzRoleAssignment -ObjectId <id> -RoleDefinitionName Owner -Scope <scope>. Since the principal is "
+    "already unresolvable, there is no functional rollback need — nothing currently depends on this "
+    "identity being able to authenticate.",
+)
+
+add_remediation_item(
+    "R5", "Remove the remaining 5 orphaned role assignments",
+    "High",
+    "None. Same pre-check as R1 — re-verify via Section 9.7 immediately before running.",
+    'Remove-AzRoleAssignment -ObjectId "3e6afd56-3e57-45dc-b795-2fef39e9ceeb" -RoleDefinitionName "Contributor" -Scope "/subscriptions/<gipl-sub-id>/resourceGroups/gipl-slice-ml-india"\n'
+    'Remove-AzRoleAssignment -ObjectId "2fdaeb76-efd2-4d8a-9354-75c3c3093319" -RoleDefinitionName "Reader" -Scope "/subscriptions/<gipl-sub-id>/resourceGroups/gipl-slice-ml-india/providers/Microsoft.CognitiveServices/accounts/da-ml-openai-api"\n'
+    'Remove-AzRoleAssignment -ObjectId "2fdaeb76-efd2-4d8a-9354-75c3c3093319" -RoleDefinitionName "Cost Management Reader" -Scope "/subscriptions/<gipl-sub-id>/resourceGroups/gipl-slice-ml-india/providers/Microsoft.CognitiveServices/accounts/da-ml-openai-api"\n'
+    'Remove-AzRoleAssignment -ObjectId "2fdaeb76-efd2-4d8a-9354-75c3c3093319" -RoleDefinitionName "Cost Management Reader" -Scope "/subscriptions/<gipl-sub-id>"\n'
+    'Remove-AzRoleAssignment -ObjectId "2fdaeb76-efd2-4d8a-9354-75c3c3093319" -RoleDefinitionName "Cost Management Contributor" -Scope "/subscriptions/<gipl-sub-id>"',
+    'Get-AzRoleAssignment | Where-Object { $_.ObjectId -in @("3e6afd56-3e57-45dc-b795-2fef39e9ceeb","2fdaeb76-efd2-4d8a-9354-75c3c3093319") }\n'
+    '# Expect: empty result set',
+    "Re-grant with New-AzRoleAssignment using the same ObjectId/Role/Scope tuples if a legitimate "
+    "dependency is discovered post-removal (unlikely, given the orphaned status).",
+)
+
+add_remediation_item(
+    "R2", "Harden Key Vault kv-azureosi540118198852: firewall, RBAC, purge protection",
+    "Critical",
+    "Confirm with app owners (azure_osi_ai_models, azure_other_models service principals) which network "
+    "ranges/Azure services actually need vault access, so the firewall allow-list doesn't break running "
+    "pipelines. Switching to RBAC authorization will also require re-creating the equivalent access as "
+    "role assignments — capture current Access Policies first with Get-AzKeyVault before changing the "
+    "authorization model.",
+    '# Step 1: capture current access policies for reference\n'
+    'Get-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" | Select-Object -ExpandProperty AccessPolicies\n\n'
+    '# Step 2: restrict network access (keep Azure services bypass so internal pipelines keep working)\n'
+    'Update-AzKeyVaultNetworkRuleSet -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" -DefaultAction Deny -Bypass AzureServices\n\n'
+    '# Step 3: enable purge protection (irreversible once set — confirm before running)\n'
+    'Update-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" -EnablePurgeProtection\n\n'
+    '# Step 4 (separate change window): migrate to RBAC authorization once equivalent role assignments are staged\n'
+    'Update-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" -EnableRbacAuthorization',
+    'Get-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" | '
+    'Select-Object VaultName, EnableRbacAuthorization, PublicNetworkAccess, EnablePurgeProtection\n'
+    '# Expect: PublicNetworkAccess restricted by firewall rule, EnablePurgeProtection = True, EnableRbacAuthorization = True\n'
+    '# Also: have azure_osi_ai_models / azure_other_models perform a test secret read immediately after to confirm no breakage',
+    "Network rule set: re-run Update-AzKeyVaultNetworkRuleSet -DefaultAction Allow to revert instantly. "
+    "RBAC migration: revert with -EnableRbacAuthorization:$false (Access Policies are not deleted by the "
+    "switch, only ignored while RBAC mode is active, so they're available immediately on rollback). Purge "
+    "protection CANNOT be rolled back once enabled — this is by design (Microsoft does not allow "
+    "disabling it) and should be the last step taken, only after firewall and RBAC changes are confirmed stable.",
+)
+
+add_remediation_item(
+    "R3", "Stand up centralized logging (Log Analytics workspace + diagnostic settings)",
+    "Critical",
+    "Decide retention period and region (recommend same region as the resource group footprint, e.g. "
+    "southindia, for latency/compliance) and budget owner for the workspace, since Log Analytics "
+    "ingestion is a paid service beyond a small free daily allowance — flag the expected cost to "
+    "management before enabling at scale (see cost note below).",
+    '# Step 1: create the workspace (one per subscription recommended)\n'
+    'New-AzOperationalInsightsWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "law-gipl-prod" -Location "southindia" -Sku PerGB2018\n'
+    'New-AzOperationalInsightsWorkspace -ResourceGroupName "slice_ml_ds" -Name "law-slicepass-prod" -Location "eastus" -Sku PerGB2018\n\n'
+    '# Step 2: subscription security contact (free, do alongside this phase)\n'
+    'Set-AzSecurityContact -Name "default1" -Email "security-team@slicebank.com" -AlertNotifications On -AlertsToAdmins On\n\n'
+    '# Step 3: wire diagnostics to the workspace for each named resource (repeat per resource):\n'
+    '$lawId = (Get-AzOperationalInsightsWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "law-gipl-prod").ResourceId\n'
+    '$kvId = (Get-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india").ResourceId\n'
+    'Set-AzDiagnosticSetting -ResourceId $kvId -WorkspaceId $lawId -Enabled $true -Category AuditEvent\n'
+    '# Repeat for: siemstorageaccount1, stazureosiai540118198852, all 10 Cognitive Services accounts (Section 8.1), both ML workspaces (Section 8.2)',
+    'Get-AzOperationalInsightsWorkspace\n'
+    '# Expect: 2 workspaces returned (one per subscription)\n'
+    'Get-AzDiagnosticSetting -ResourceId $kvId\n'
+    '# Expect: a diagnostic setting entry pointing at the new workspace, for each of the 15 resources in Section 4.1\n'
+    '# Wait 15-30 minutes, then confirm log flow: Invoke-AzOperationalInsightsQuery -WorkspaceId <law-customer-id> -Query "AzureDiagnostics | take 10"',
+    "Diagnostic settings can be individually removed with Remove-AzDiagnosticSetting without affecting "
+    "the underlying resource. The Log Analytics workspace itself can be deleted with "
+    "Remove-AzOperationalInsightsWorkspace if the cost/retention decision needs revisiting — no production "
+    "resource depends on the workspace existing, so this is a low-risk, fully reversible phase.",
+)
+
+add_remediation_item(
+    "R6/R8", "Restrict storage account network access, disable shared key auth, restrict ML workspace public access",
+    "High",
+    "Confirm with app owners which client/pipeline currently authenticates to "
+    "stazureosiai540118198852 and siemstorageaccount1 using an access key rather than Azure AD — those "
+    "clients will break the moment AllowSharedKeyAccess is set to $false and must be migrated to "
+    "Azure AD-based auth (Storage Blob Data Contributor role, already held by azure_osi_ai_models / "
+    "azure_other_models) beforehand.",
+    'Update-AzStorageAccountNetworkRuleSet -ResourceGroupName "siem" -Name "siemstorageaccount1" -DefaultAction Deny -Bypass AzureServices\n'
+    'Set-AzStorageAccount -ResourceGroupName "siem" -Name "siemstorageaccount1" -AllowSharedKeyAccess $false\n'
+    'Update-AzStorageAccountNetworkRuleSet -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" -DefaultAction Deny -Bypass AzureServices\n'
+    'Set-AzStorageAccount -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" -AllowSharedKeyAccess $false\n\n'
+    '# ML workspace public access — only after Private Endpoint + Private DNS zone are provisioned (see R4/R9 below)\n'
+    'Update-AzMLWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "azure_osi_ai_models" -PublicNetworkAccess Disabled\n'
+    'Update-AzMLWorkspace -ResourceGroupName "gipl-slice-ml-india" -Name "azure_other_models" -PublicNetworkAccess Disabled',
+    'Get-AzStorageAccount -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" | '
+    'Select-Object AllowSharedKeyAccess, @{N="DefaultAction";E={$_.NetworkRuleSet.DefaultAction}}\n'
+    '# Expect: AllowSharedKeyAccess = False, DefaultAction = Deny\n'
+    '# Then have each dependent pipeline perform a test read/write to confirm AAD-based access still works',
+    "Both changes revert instantly: Set-AzStorageAccount ... -AllowSharedKeyAccess $true and "
+    "Update-AzStorageAccountNetworkRuleSet ... -DefaultAction Allow. Recommend testing in a maintenance "
+    "window with the dependent pipeline owner on standby for the first attempt.",
+)
+
+add_remediation_item(
+    "R4/R9", "Move all 10 AI accounts and both ML workspaces behind Private Link; disable public access",
+    "Critical",
+    "Highest-change-risk item in this plan. Requires, in order: (1) a VNet/subnet to host Private "
+    "Endpoints — currently none exists in either subscription, so this is new infrastructure, not a "
+    "toggle; (2) a Private DNS zone per service type (privatelink.openai.azure.com, "
+    "privatelink.cognitiveservices.azure.com, privatelink.api.azureml.ms, etc.) linked to that VNet; (3) "
+    "a Private Endpoint per resource; (4) only then disable public network access. Recommend piloting on "
+    "one low-traffic account (e.g., dev-poc-ds) before rolling out to production accounts "
+    "(fraud-ds-prod, merchant-prod-ds).",
+    '# Step 1: create VNet/subnet (example — adjust CIDR to avoid overlap with any existing ranges)\n'
+    'New-AzVirtualNetwork -ResourceGroupName "gipl-slice-ml-india" -Name "vnet-ai-private" -Location "southindia" -AddressPrefix "10.50.0.0/16"\n'
+    '$vnet = Get-AzVirtualNetwork -ResourceGroupName "gipl-slice-ml-india" -Name "vnet-ai-private"\n'
+    'Add-AzVirtualNetworkSubnetConfig -Name "snet-private-endpoints" -VirtualNetwork $vnet -AddressPrefix "10.50.1.0/24"\n'
+    '$vnet | Set-AzVirtualNetwork\n\n'
+    '# Step 2: pilot on dev-poc-ds first\n'
+    '$subnet = Get-AzVirtualNetworkSubnetConfig -Name "snet-private-endpoints" -VirtualNetwork $vnet\n'
+    '$account = Get-AzCognitiveServicesAccount -ResourceGroupName "slice_ml_ds" -Name "dev-poc-ds"\n'
+    '$plsConnection = New-AzPrivateLinkServiceConnection -Name "pls-dev-poc-ds" -PrivateLinkServiceId $account.Id -GroupId "account"\n'
+    'New-AzPrivateEndpoint -ResourceGroupName "slice_ml_ds" -Name "pe-dev-poc-ds" -Location "southindia" -Subnet $subnet -PrivateLinkServiceConnection $plsConnection\n'
+    '# Create + link the matching Private DNS zone, then validate name resolution before disabling public access\n\n'
+    '# Step 3 (after pilot validated): disable public access\n'
+    'Update-AzCognitiveServicesAccount -ResourceGroupName "slice_ml_ds" -Name "dev-poc-ds" -PublicNetworkAccess Disabled\n'
+    '# Repeat Steps 2-3 for each remaining account in Section 8.1 and both ML workspaces in Section 8.2, one at a time, in a maintenance window',
+    'Get-AzCognitiveServicesAccount -ResourceGroupName "slice_ml_ds" -Name "dev-poc-ds" | Select-Object PublicNetworkAccess\n'
+    '# Expect: Disabled\n'
+    "# From within the VNet (or a peered/VPN-connected network): confirm the account's endpoint resolves to a 10.50.1.x private IP and a successful API call works\n"
+    '# From outside the VNet: confirm the public endpoint now refuses connections (expected failure)',
+    "Each account can be individually reverted with "
+    "Update-AzCognitiveServicesAccount ... -PublicNetworkAccess Enabled if an integration breaks. "
+    "Private Endpoints can be removed with Remove-AzPrivateEndpoint without affecting the underlying "
+    "resource. Recommend keeping public access enabled in parallel with the new Private Endpoint for 48 "
+    "hours per resource before fully disabling, to allow a fast revert window if an unexpected client "
+    "breaks.",
+)
+
+add_remediation_item(
+    "R11", "Enable Blob Soft Delete on both storage accounts",
+    "High",
+    "None — purely additive, no breaking change.",
+    'Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName "gipl-slice-ml-india" -StorageAccountName "stazureosiai540118198852" -RetentionDays 14\n'
+    'Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName "siem" -StorageAccountName "siemstorageaccount1" -RetentionDays 14',
+    'Get-AzStorageBlobServiceProperty -ResourceGroupName "gipl-slice-ml-india" -StorageAccountName "stazureosiai540118198852" | Select-Object -ExpandProperty DeleteRetentionPolicy\n'
+    '# Expect: Enabled = True, Days = 14',
+    "Disable-AzStorageBlobDeleteRetentionPolicy reverts instantly with no data impact.",
+)
+
+add_remediation_item(
+    "R10", "Apply resource locks to critical resources",
+    "High",
+    "None — locks only block delete/write per the chosen LockLevel, no functional impact for "
+    "CanNotDelete locks on read/write operations.",
+    'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "kv-azureosi540118198852" -ResourceType "Microsoft.KeyVault/vaults" -Force\n'
+    'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "stazureosiai540118198852" -ResourceType "Microsoft.Storage/storageAccounts" -Force\n'
+    'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "siem" -ResourceName "siemstorageaccount1" -ResourceType "Microsoft.Storage/storageAccounts" -Force\n'
+    'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "azure_osi_ai_models" -ResourceType "Microsoft.MachineLearningServices/workspaces" -Force\n'
+    'New-AzResourceLock -LockLevel CanNotDelete -LockName "PreventDelete" -ResourceGroupName "gipl-slice-ml-india" -ResourceName "azure_other_models" -ResourceType "Microsoft.MachineLearningServices/workspaces" -Force',
+    'Get-AzResourceLock | Select-Object ResourceName, LockLevel\n'
+    '# Expect: 5 rows, one per resource above, LockLevel = CanNotDelete',
+    "Remove-AzResourceLock -LockName 'PreventDelete' -ResourceGroupName <rg> -ResourceName <name> -ResourceType <type> "
+    "removes the lock instantly with no other side effects.",
+)
+
+add_remediation_item(
+    "R7", "Scope down service principal privileges (azure_osi_ai_models, azure_other_models)",
+    "High",
+    "Requires a short usage audit first: once R3 (logging) has been live for 1–2 weeks, review the "
+    "actual data-plane actions each SP performs via the new diagnostic logs, then build a custom role "
+    "containing only those actions before removing the broad Contributor/Key Vault Administrator grants.",
+    '# After usage audit confirms which specific actions are needed, example narrowing:\n'
+    '$spId = (Get-AzADServicePrincipal -DisplayName "azure_osi_ai_models").Id\n'
+    'Remove-AzRoleAssignment -ObjectId $spId -RoleDefinitionName "Contributor" -Scope "/subscriptions/<sub-id>/resourceGroups/gipl-slice-ml-india"\n'
+    '# Replace with a custom role scoped to only the confirmed-needed actions, e.g.:\n'
+    'New-AzRoleAssignment -ObjectId $spId -RoleDefinitionName "Cognitive Services User" -Scope "/subscriptions/<sub-id>/resourceGroups/gipl-slice-ml-india/providers/Microsoft.CognitiveServices/accounts/de-ml-openai-api"\n'
+    '# Repeat the audit-then-narrow process for azure_other_models',
+    'Get-AzRoleAssignment | Where-Object { $_.DisplayName -eq "azure_osi_ai_models" } | Select-Object RoleDefinitionName, Scope\n'
+    '# Expect: only the narrowly-scoped roles remain, no RG-level Contributor or Key Vault Administrator\n'
+    '# Run a full pipeline/integration test immediately after to confirm nothing broke',
+    "Re-grant the original Contributor/Key Vault Administrator roles at RG/resource scope if the narrowed "
+    "permission set turns out to be insufficient — keep the original role/scope list (Section 2.6) on "
+    "hand as the rollback reference.",
+)
+
+add_remediation_item(
+    "R12", "Enforce tagging via Azure Policy",
+    "Medium",
+    "Decide the required tag taxonomy (e.g., Owner, Environment, CostCenter) with finance/governance "
+    "before assigning — start in Audit mode so nothing is blocked while gaps are identified.",
+    'New-AzPolicyAssignment -Name "require-tag-owner" -PolicyDefinition (Get-AzPolicyDefinition -Name "1e30110a-5ceb-460c-a204-c1c3969c6d62") -Scope "/subscriptions/<sub-id>" -PolicyParameterObject @{ tagName = "Owner" }\n'
+    '# Repeat for additional required tags (Environment, CostCenter, etc.), and consider "Append" effect policies to auto-tag rather than just audit',
+    'Get-AzPolicyAssignment -Name "require-tag-owner"\n'
+    '# Then after 24h propagation: Get-AzPolicyState -Filter "PolicyAssignmentName eq \'require-tag-owner\'" | Group-Object ComplianceState',
+    "Remove-AzPolicyAssignment -Name 'require-tag-owner' -Scope <scope> removes the assignment instantly; "
+    "since it starts in Audit mode, there is no enforcement risk during the initial rollout.",
+)
 
 add_para("End of report.", italic=True)
 
