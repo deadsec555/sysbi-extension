@@ -180,8 +180,9 @@ add_bullets([
     "6. Phase 6 — Governance & Compliance (named policy assignments)",
     "7. Consolidated Risk Register",
     "8. Asset Register — All Named Resources",
-    "9. Methodology & Constraints",
-    "10. Prepared Remediation Scripts (NOT executed — pending approval)",
+    "9. Proof of Findings — Verification & Azure Portal Navigation",
+    "10. Methodology & Constraints",
+    "11. Prepared Remediation Scripts (NOT executed — pending approval)",
 ])
 doc.add_page_break()
 
@@ -640,8 +641,136 @@ add_bullets(["ml-ds-india", "azure_osi_ai_models", "azure_other_models"])
 
 doc.add_page_break()
 
+# ================= PROOF OF FINDINGS =================
+add_heading("9. Proof of Findings — Verification & Azure Portal Navigation", level=1)
+add_para(
+    "This section gives the exact Azure Portal click-path and the exact PowerShell command used to "
+    "independently verify each Critical and High finding in this report. Anyone with Reader access on "
+    "either subscription can reproduce every result below in under two minutes per item. Screenshots were "
+    "not captured during this engagement (Cloud Shell, no storage account); the navigation paths below "
+    "let the board, IT, or an auditor reproduce the evidence live on screen."
+)
+
+def add_proof_item(num, title_text, severity, portal_path, cli_command, expected_evidence):
+    p = doc.add_paragraph()
+    r = p.add_run(f"{num}. {title_text}  ")
+    r.bold = True
+    r.font.size = Pt(12)
+    r2 = p.add_run(f"[{severity}]")
+    r2.bold = True
+    if severity in SEV_COLORS:
+        r2.font.color.rgb = RGBColor.from_string(SEV_COLORS[severity])
+
+    pp = doc.add_paragraph()
+    pp.add_run("Portal navigation: ").bold = True
+    pp.add_run(portal_path)
+
+    cp = doc.add_paragraph()
+    cp.add_run("Verification command (read-only): ").bold = True
+    code_p = doc.add_paragraph()
+    code_run = code_p.add_run(cli_command)
+    code_run.font.name = 'Consolas'
+    code_run.font.size = Pt(9)
+
+    ep = doc.add_paragraph()
+    ep.add_run("Expected evidence on screen: ").bold = True
+    ep.add_run(expected_evidence)
+    doc.add_paragraph()
+
+add_proof_item(
+    "9.1", "Orphaned Owner at subscription root (Object ID e1cb2806-...)", "Critical",
+    "Portal → Subscriptions → select subscription (“Azure Pass - Sponsorship” or “gipl-azure-subscription”) "
+    "→ Access control (IAM) → Role assignments tab → sort by “Type” or look for a row where the Name "
+    "column shows “Identity not found” instead of a person's name.",
+    'Get-AzRoleAssignment | Where-Object { [string]::IsNullOrEmpty($_.DisplayName) -and $_.RoleDefinitionName -eq "Owner" }',
+    "A role assignment row with RoleDefinitionName = Owner, Scope = subscription root, and a blank "
+    "DisplayName/SignInName — the Portal will show this principal as “Identity not found” in red text.",
+)
+
+add_proof_item(
+    "9.2", "Key Vault kv-azureosi540118198852 — public access, no firewall, no RBAC", "Critical",
+    "Portal → Key vaults → kv-azureosi540118198852 → Networking (left blade) shows "
+    "“Allow public access from all networks”; → Access configuration (left blade) shows "
+    "“Permission model: Vault access policy” instead of “Azure role-based access control”; "
+    "→ Properties shows “Purge protection: Disabled”.",
+    'Get-AzKeyVault -VaultName "kv-azureosi540118198852" -ResourceGroupName "gipl-slice-ml-india" | '
+    'Select-Object VaultName, EnableRbacAuthorization, PublicNetworkAccess, EnablePurgeProtection',
+    "EnableRbacAuthorization = False, PublicNetworkAccess = Enabled, EnablePurgeProtection = blank/False.",
+)
+
+add_proof_item(
+    "9.3", "No Log Analytics workspace / no audit trail in either subscription", "Critical",
+    "Portal → switch to each subscription → Log Analytics workspaces (search in top bar) → filtered to "
+    "the subscription → empty list (“No Log Analytics workspaces to display”).",
+    'Get-AzOperationalInsightsWorkspace -ErrorAction SilentlyContinue',
+    "Empty result set when run against either subscription context — confirms zero workspaces exist to "
+    "receive diagnostic logs.",
+)
+
+add_proof_item(
+    "9.4", "AI / Cognitive Services accounts — public network access enabled (10 of 10)", "Critical",
+    "Portal → Azure AI services / Cognitive Services → select any of the 10 accounts listed in Section "
+    "8.1 (e.g., de-ml-anthropic-resource) → Resource Management → Networking → shows "
+    "“All networks, including the internet, can access this resource.”",
+    'Get-AzCognitiveServicesAccount -ResourceGroupName "gipl-slice-ml-india" -Name "de-ml-anthropic-resource" | '
+    'Select-Object AccountName, PublicNetworkAccess',
+    "PublicNetworkAccess = Enabled, repeatable for each of the 10 named accounts in Section 8.1.",
+)
+
+add_proof_item(
+    "9.5", "Storage accounts — no network restriction, shared key access enabled", "High",
+    "Portal → Storage accounts → stazureosiai540118198852 (or siemstorageaccount1) → Networking → "
+    "“Public network access” = Enabled from all networks; → Configuration → “Allow storage account key "
+    "access” = Enabled.",
+    'Get-AzStorageAccount -ResourceGroupName "gipl-slice-ml-india" -Name "stazureosiai540118198852" | '
+    'Select-Object StorageAccountName, AllowSharedKeyAccess, @{N="DefaultAction";E={$_.NetworkRuleSet.DefaultAction}}',
+    "AllowSharedKeyAccess = True (or blank, which defaults to enabled), DefaultAction = Allow.",
+)
+
+add_proof_item(
+    "9.6", "Zero resource locks anywhere", "High",
+    "Portal → any resource (e.g., kv-azureosi540118198852) → Settings → Locks (left blade) → "
+    "“There are no locks to display.” Repeat at the subscription level: Subscriptions → "
+    "[subscription] → Resource locks.",
+    'Get-AzResourceLock',
+    "Empty result set across both subscriptions — confirms no CanNotDelete or ReadOnly locks exist on "
+    "any resource.",
+)
+
+add_proof_item(
+    "9.7", "5 additional orphaned role assignments", "High",
+    "Portal → Subscriptions → [subscription] → Access control (IAM) → Role assignments → look for "
+    "additional rows showing “Identity not found” beyond the one at subscription root.",
+    'Get-AzRoleAssignment | Where-Object { [string]::IsNullOrEmpty($_.DisplayName) -and [string]::IsNullOrEmpty($_.SignInName) }',
+    "Returns 6 total rows across both subscriptions (1 Owner + 5 others) with blank DisplayName/SignInName "
+    "and ObjectIds 3e6afd56-... and 2fdaeb76-... in addition to e1cb2806-....",
+)
+
+add_proof_item(
+    "9.8", "Service principals with broad standing privilege (azure_osi_ai_models, azure_other_models)", "High",
+    "Portal → Subscriptions → [gipl-azure-subscription] → Access control (IAM) → Role assignments → "
+    "filter Type = “App” → locate azure_osi_ai_models and azure_other_models → note multiple roles "
+    "(Contributor, Key Vault Administrator, Storage Blob/File/Table Data Contributor) held by the same "
+    "principal across different resources.",
+    'Get-AzRoleAssignment | Where-Object { $_.ObjectType -eq "ServicePrincipal" -and $_.DisplayName -in @("azure_osi_ai_models","azure_other_models") } | '
+    'Select-Object DisplayName, RoleDefinitionName, Scope',
+    "Each service principal shows 5+ distinct role assignments spanning Contributor, Key Vault "
+    "Administrator, and three different Storage Data roles.",
+)
+
+add_proof_item(
+    "9.9", "No tagging enforcement policy / 26.9% resources untagged", "Medium",
+    "Portal → Policy → Definitions (or Assignments) → filtered to either subscription → confirm only "
+    "“sys.blockwesteurope” and the Defender “SecurityCenterBuiltIn” assignment exist, no tag-related "
+    "policy assignment. Then: Resource groups → [each RG] → Tags blade shows blank for 4 of 5 RGs.",
+    'Get-AzPolicyAssignment | Select-Object Name | Where-Object { $_.Name -match "tag" }',
+    "Empty result — confirms no tagging policy is assigned in either subscription.",
+)
+
+doc.add_page_break()
+
 # ================= METHODOLOGY =================
-add_heading("9. Methodology & Constraints", level=1)
+add_heading("10. Methodology & Constraints", level=1)
 add_bullets([
     "All data collection was performed using read-only operations only: Azure Resource Graph (Search-AzGraph), Azure PowerShell Az module list/get cmdlets, and Azure Advisor.",
     "No paid Defender for Cloud plan, Sentinel, or Log Analytics ingestion was enabled to produce this report.",
@@ -654,7 +783,7 @@ add_bullets([
 doc.add_page_break()
 
 # ================= REMEDIATION =================
-add_heading("10. Prepared Remediation Scripts — NOT EXECUTED, Pending Approval", level=1)
+add_heading("11. Prepared Remediation Scripts — NOT EXECUTED, Pending Approval", level=1)
 add_para(
     "Each script below targets a specific named resource or principal identified in this report. None "
     "have been run. Each requires management approval, change-control sign-off, and validation in a "
