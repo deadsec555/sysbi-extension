@@ -6,3 +6,22 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Video editing system: media stays local (too big for git); folder skeletons are kept
+/raw/*
+/transcripts/*
+/shotlogs/*
+/animations/*
+/broll/*
+/audio/*
+/output/*
+!/raw/.gitkeep
+!/transcripts/.gitkeep
+!/shotlogs/.gitkeep
+!/animations/.gitkeep
+!/broll/.gitkeep
+!/audio/.gitkeep
+!/output/.gitkeep
+tools/.venv/
+tools/fonts/*.woff*
+__pycache__/

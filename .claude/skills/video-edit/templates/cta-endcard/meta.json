@@ -1,0 +1,16 @@
+{
+  "name": "cta-endcard",
+  "status": "starter (not yet approved)",
+  "duration": 6,
+  "description": "End card: call to action + contact. Leave room on the right for YouTube end-screen elements.",
+  "variables": {
+    "cta": "Thinking of moving? Let's talk.",
+    "name": "Alex Morgan",
+    "phone": "(555) 010-2030",
+    "site": "morganrealty.com"
+  },
+  "sfx_cues_pop": [
+    0.2,
+    0.6
+  ]
+}

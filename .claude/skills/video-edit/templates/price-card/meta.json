@@ -1,0 +1,20 @@
+{
+  "name": "price-card",
+  "status": "starter (not yet approved)",
+  "duration": 5,
+  "description": "Listing card: price + beds/baths/sq ft, items pop in one by one. Over tour B-roll.",
+  "variables": {
+    "price": "$725,000",
+    "beds": "4 Beds",
+    "baths": "3 Baths",
+    "area": "2,450 sq ft",
+    "address": "128 Maple Ave, Riverside"
+  },
+  "sfx_cues_pop": [
+    0.15,
+    0.55,
+    0.7,
+    0.85,
+    1.0
+  ]
+}

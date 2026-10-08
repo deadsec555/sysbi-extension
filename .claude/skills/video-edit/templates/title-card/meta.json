@@ -1,0 +1,13 @@
+{
+  "name": "title-card",
+  "status": "starter (not yet approved)",
+  "duration": 3,
+  "description": "Big headline with accent bar; for section titles and the hook headline.",
+  "variables": {
+    "title": "Just Listed in Riverside",
+    "kicker": "NEW LISTING"
+  },
+  "sfx_cues_pop": [
+    0.15
+  ]
+}

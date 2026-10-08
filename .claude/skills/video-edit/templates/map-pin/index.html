@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[{"id": "label", "type": "string", "label": "Label", "default": "Riverside Park \u00b7 5 min walk"}, {"id": "x", "type": "string", "label": "Pin X %", "default": "50"}, {"id": "y", "type": "string", "label": "Pin Y %", "default": "45"}]'>
+<head><meta charset="UTF-8" />
+<meta name="viewport" content="width={{W}}, height={{H}}" />
+<script src="gsap.min.js"></script>
+<style>
+@font-face{font-family:Montserrat;font-weight:700;src:url(fonts/montserrat-latin-700-normal.woff2)}
+@font-face{font-family:Montserrat;font-weight:800;src:url(fonts/montserrat-latin-800-normal.woff2)}
+@font-face{font-family:Montserrat;font-weight:900;src:url(fonts/montserrat-latin-900-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:400;src:url(fonts/poppins-latin-400-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:600;src:url(fonts/poppins-latin-600-normal.woff2)}
+:root{--panel:rgba(11,11,15,.88);--text:#FFFFFF;--muted:#B8B8C0;--accent:#FFD60A;--accent-ink:#0B0B0F}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:{{W}}px;height:{{H}}px;overflow:hidden;background:transparent}
+#root{position:relative;width:100%;height:100%;font-family:Poppins,sans-serif;color:var(--text)}
+h1,h2,h3,.head{font-family:Montserrat,sans-serif;font-weight:800;letter-spacing:-.01em}
+#pin{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center} .dot{width:6vmin;height:6vmin;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 1vmin 3vmin rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center} .dot::after{content:'';width:2.2vmin;height:2.2vmin;border-radius:50%;background:var(--accent-ink)} .ring{position:absolute;bottom:-1.5vmin;width:4vmin;height:1.6vmin;border-radius:50%;border:.4vmin solid var(--accent)} .label{position:absolute;bottom:9vmin;white-space:nowrap;background:var(--panel);padding:1.2vmin 2.2vmin;border-radius:1vmin;font-weight:600;font-size:3vmin}
+</style></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4" data-width="{{W}}" data-height="{{H}}">
+<div id="pin"><div class="label" data-var="label"></div><div class="dot"></div><div class="ring"></div></div>
+</div>
+<script>
+const v = window.__hyperframes.getVariables();
+document.querySelectorAll("[data-var]").forEach(el => { el.textContent = v[el.dataset.var] ?? ""; });
+document.querySelectorAll("[data-hide-empty]").forEach(el => { if (!v[el.dataset.hideEmpty]) el.style.display = "none"; });
+const tl = gsap.timeline({ paused: true });
+const p=document.getElementById("pin"); p.style.left=(v.x||50)+"%"; p.style.top=(v.y||45)+"%";
+tl.from(".dot",{y:-120,opacity:0,duration:.45,ease:"bounce.out"},.1).from(".ring",{scale:0,opacity:0,duration:.4,ease:"power2.out"},.5).from(".label",{y:15,opacity:0,duration:.35,ease:"back.out(2)"},.7).to("#pin",{opacity:0,duration:.35},3.6);
+window.__timelines["main"] = tl; tl.seek(0);
+</script></body></html>

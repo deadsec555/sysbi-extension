@@ -1,0 +1,5 @@
+onnx-asr[cpu,hub]==0.12.0
+sherpa-onnx==1.13.8
+opencv-python-headless==4.14.0.94
+soundfile==0.14.0
+numpy==2.5.3

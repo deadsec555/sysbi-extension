@@ -1,0 +1,13 @@
+{
+  "name": "lower-third",
+  "status": "starter (not yet approved)",
+  "duration": 5,
+  "description": "Name + role strip, bottom-left. Agent name/brokerage, interviewee name, or room name.",
+  "variables": {
+    "name": "Alex Morgan",
+    "role": "Realtor \u00b7 Morgan & Co. Realty"
+  },
+  "sfx_cues_pop": [
+    0.1
+  ]
+}

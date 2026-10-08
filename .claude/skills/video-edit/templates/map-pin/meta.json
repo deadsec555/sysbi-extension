@@ -1,0 +1,14 @@
+{
+  "name": "map-pin",
+  "status": "starter (not yet approved)",
+  "duration": 4,
+  "description": "Location pin drop with label, over a real map screenshot/drone shot (put it underneath as B-roll). Set pin position with x/y (percent).",
+  "variables": {
+    "label": "Riverside Park \u00b7 5 min walk",
+    "x": "50",
+    "y": "45"
+  },
+  "sfx_cues_pop": [
+    0.35
+  ]
+}

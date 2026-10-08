@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[{"id": "title", "type": "string", "label": "Headline", "default": "Just Listed in Riverside"}, {"id": "kicker", "type": "string", "label": "Small line above", "default": "NEW LISTING"}]'>
+<head><meta charset="UTF-8" />
+<meta name="viewport" content="width={{W}}, height={{H}}" />
+<script src="gsap.min.js"></script>
+<style>
+@font-face{font-family:Montserrat;font-weight:700;src:url(fonts/montserrat-latin-700-normal.woff2)}
+@font-face{font-family:Montserrat;font-weight:800;src:url(fonts/montserrat-latin-800-normal.woff2)}
+@font-face{font-family:Montserrat;font-weight:900;src:url(fonts/montserrat-latin-900-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:400;src:url(fonts/poppins-latin-400-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:600;src:url(fonts/poppins-latin-600-normal.woff2)}
+:root{--panel:rgba(11,11,15,.88);--text:#FFFFFF;--muted:#B8B8C0;--accent:#FFD60A;--accent-ink:#0B0B0F}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:{{W}}px;height:{{H}}px;overflow:hidden;background:transparent}
+#root{position:relative;width:100%;height:100%;font-family:Poppins,sans-serif;color:var(--text)}
+h1,h2,h3,.head{font-family:Montserrat,sans-serif;font-weight:800;letter-spacing:-.01em}
+#wrap{position:absolute;left:8vmin;bottom:16vmin;max-width:80%} .kicker{display:inline-block;background:var(--accent);color:var(--accent-ink);font-family:Montserrat;font-weight:800;font-size:3.2vmin;padding:.6vmin 1.6vmin;border-radius:.8vmin;letter-spacing:.12em} h1{font-size:9vmin;line-height:1.02;margin-top:2vmin;text-shadow:0 .4vmin 2vmin rgba(0,0,0,.45)} .bar{height:1.1vmin;width:0;background:var(--accent);margin-top:2.4vmin;border-radius:1vmin}
+</style></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="3" data-width="{{W}}" data-height="{{H}}">
+<div id="wrap"><span class="kicker" data-var="kicker" data-hide-empty="kicker"></span><h1 data-var="title"></h1><div class="bar"></div></div>
+</div>
+<script>
+const v = window.__hyperframes.getVariables();
+document.querySelectorAll("[data-var]").forEach(el => { el.textContent = v[el.dataset.var] ?? ""; });
+document.querySelectorAll("[data-hide-empty]").forEach(el => { if (!v[el.dataset.hideEmpty]) el.style.display = "none"; });
+const tl = gsap.timeline({ paused: true });
+tl.from(".kicker",{y:30,opacity:0,duration:.35,ease:"back.out(2)"},.15).from("h1",{y:60,opacity:0,duration:.5,ease:"power3.out"},.25).to(".bar",{width:"22vmin",duration:.5,ease:"power2.out"},.5).to("#wrap",{opacity:0,y:-20,duration:.35,ease:"power2.in"},2.6);
+window.__timelines["main"] = tl; tl.seek(0);
+</script></body></html>

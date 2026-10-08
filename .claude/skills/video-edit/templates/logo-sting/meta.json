@@ -1,0 +1,13 @@
+{
+  "name": "logo-sting",
+  "status": "starter (not yet approved)",
+  "duration": 2.5,
+  "description": "Logo intro/outro. Put the logo at logo.png in the working folder (or brand assets); text fallback if no logo.",
+  "variables": {
+    "brand": "MORGAN & CO.",
+    "tagline": "Real Estate"
+  },
+  "sfx_cues_pop": [
+    0.2
+  ]
+}
