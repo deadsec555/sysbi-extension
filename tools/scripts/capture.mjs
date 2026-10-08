@@ -51,15 +51,15 @@ async function open(record) {
     ...(record ? { recordVideo: { dir: videoDir, size: { width: W, height: H } } } : {}),
   });
   const page = await ctx.newPage();
+  const openedAt = Date.now();
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   // Dismiss common cookie / consent banners so they don't cover the source.
-  for (const label of ["Accept all", "Accept", "I agree", "Agree", "Allow all", "Got it", "OK"]) {
-    const b = page.getByRole("button", { name: label, exact: true });
-    if (await b.count().catch(() => 0)) {
-      await b.first().click({ timeout: 1500 }).catch(() => {});
-      break;
-    }
+  const consent = page.locator("#onetrust-accept-btn-handler, #onetrust-reject-all-handler, button#accept-recommended-btn-handler")
+    .or(page.getByRole("button", { name: /^(accept( all)?( cookies)?|reject all|i agree|agree|allow all|got it|ok)$/i }));
+  if (await consent.count().catch(() => 0)) {
+    await consent.first().click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(500);
   }
   await page.waitForTimeout(wait);
   // Mark the requested lines (real text on the page) with a highlighter colour.
@@ -85,7 +85,7 @@ async function open(record) {
     }
     return out;
   }, highlights);
-  return { ctx, page, found };
+  return { ctx, page, found, openedAt };
 }
 
 // 1) Screenshots at 2x for 4K-sharp B-roll.
@@ -117,6 +117,7 @@ if (scroll) {
     return m ? Math.max(0, m.getBoundingClientRect().top + scrollY - innerHeight / 2)
              : Math.min(document.body.scrollHeight - innerHeight, innerHeight * 2);
   });
+  const settledAt = Date.now();
   await rec.page.waitForTimeout(800);
   await rec.page.evaluate(async (y) => {
     const start = scrollY, dur = Math.min(6000, 1200 + Math.abs(y - start) * 1.2), t0 = performance.now();
@@ -133,8 +134,8 @@ if (scroll) {
   const video = rec.page.video();
   await rec.ctx.close();
   const webm = await video.path();
-  // Drop the loading frames at the start (page load + wait) so the clip starts on the settled page.
-  const trim = (wait + 300) / 1000;
+  // Drop the loading frames so the clip starts on the settled page (0.5 s before the scroll).
+  const trim = Math.max(0, (settledAt - rec.openedAt + 300) / 1000);
   execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", String(trim), "-i", webm, "-c:v", "libx264", "-crf", "16",
     "-pix_fmt", "yuv420p", "-r", "30", "-an", `${prefix}.mp4`]);
 }
