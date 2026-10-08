@@ -47,7 +47,7 @@ Edit-plan (EDL) format: the docstring at the top of `tools/scripts/assemble.py`.
 ## Step 0 — Check the workshop (every session, ~10 s)
 
 1. `bash tools/setup.sh --check`. If it lists problems, run `bash tools/setup.sh`. If models still
-   can't download, the environment's network is blocking huggingface.co / github.com — tell the user
+   can't download, the environment's network is blocking huggingface.co — tell the user
    (one step: environment settings → Network access → **Full**, then start a new session).
 2. Look for connector tools with ToolSearch: `tella`, `epidemic`. Note which are available.
 3. Footage: the project lives in `raw/<project>/`. If the user attached files in chat or named files
@@ -131,6 +131,9 @@ is actually clicked on screen. Never more than one SFX in any 2-second window.
 
 1. Over 3 minutes: show the plan, wait for approval. Otherwise go straight on.
 2. `assemble.py … --preview` (fast 540p). Read `<name>-preview.qc.md` and the `.qc.jpg` contact sheet.
+   QC checks: decode errors, black frames, freezes, flashes/glitches, audio dropouts, A/V length sync,
+   loudness/peak, **cut points vs word timestamps** (no cut inside a word), and a **speech re-check**
+   (Parakeet listens to the output and confirms every planned word is there, in the right place).
    Fix anything under **Must fix**; judge each **Check** item.
 3. Full render: `assemble.py …` (default 1080p; `"resolution": "4k"` when the footage is 4K and the user
    wants 4K). It QCs again. Rendering is slow on this machine (roughly real-time ×2–5 at 1080p) —

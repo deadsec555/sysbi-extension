@@ -13,8 +13,9 @@ When the user gives Tella recording names:
 3. Export/download the finished Tella video into `broll/<project>/` (or `raw/<project>/` with `cp -n` if it
    is the main footage — never overwrite) and include it in the edit like any clip.
 4. Report what you changed in Tella.
-If the Tella tools are not available: tell the user to turn the connector on (claude.ai →
-Settings → Connectors → Tella → Connect) or to export the recording from Tella and attach it.
+If the Tella tools are not available: the connector is connected on the account (2026-10-08) but may be
+switched off for the chat — tell the user to enable Tella in this chat's connector menu (or claude.ai →
+Settings → Connectors → Tella), or to export the recording from Tella and attach it.
 
 ## Epidemic Sound (music + SFX)
 
@@ -36,8 +37,8 @@ so they match the edit exactly.
 
 ## Network / models
 
-Parakeet and speaker-label models download from huggingface.co and github.com on first setup
-(~1 GB). Captures need the open web. If either is blocked: the environment's Network access must be
+Parakeet, voice-detection and speaker-label models download from huggingface.co on first setup
+(~700 MB, into ~/.cache/video-edit-models). Captures need the open web. If either is blocked: the environment's Network access must be
 **Full** (cloud environment settings → Edit → Network access), then start a new session.
 
 ## Working locally (optional)

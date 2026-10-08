@@ -43,7 +43,7 @@ def load_asr():
     quant = "int8" if (PARAKEET / "encoder-model.int8.onnx").exists() else None
     asr = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", str(PARAKEET), quantization=quant)
     vad = onnx_asr.load_vad("silero", str(SILERO))
-    return asr.with_vad(vad, max_speech_duration_s=25, min_silence_duration_ms=250).with_timestamps()
+    return asr.with_vad(vad, max_speech_duration_s=12, min_silence_duration_ms=100).with_timestamps()
 
 
 def words_from_segment(seg) -> list[dict]:

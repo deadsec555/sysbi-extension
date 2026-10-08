@@ -54,7 +54,7 @@ fi
 
 # 4. Models (downloaded once, ~1 GB): Parakeet TDT 0.6B v3 (int8), Silero VAD, speaker diarization
 if ! $CHECK_ONLY && [ -x "$TOOLS/.venv/bin/python" ]; then
-  "$TOOLS/.venv/bin/python" - "$MODELS" <<'PY' || problems+=("model download failed — huggingface.co / github.com must be reachable (see the skill's setup notes)")
+  "$TOOLS/.venv/bin/python" - "$MODELS" <<'PY' || problems+=("model download failed — huggingface.co must be reachable (see the skill's setup notes)")
 import sys, os, tarfile, urllib.request, shutil
 from pathlib import Path
 def _short(t, e, tb):
@@ -70,17 +70,11 @@ s = models / "silero-vad"
 if not any(s.glob("*.onnx")):
     snapshot_download("istupakov/silero-vad-onnx", local_dir=s)
 d = models / "diarization"; d.mkdir(exist_ok=True)
-gh = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
+from huggingface_hub import hf_hub_download
 if not (d / "segmentation.onnx").exists():
-    tb = d / "seg.tar.bz2"
-    urllib.request.urlretrieve(f"{gh}/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2", tb)
-    with tarfile.open(tb) as t:
-        m = next(x for x in t.getmembers() if x.name.endswith("/model.onnx"))
-        with t.extractfile(m) as src, open(d / "segmentation.onnx", "wb") as dst:
-            shutil.copyfileobj(src, dst)
-    tb.unlink()
+    shutil.copy(hf_hub_download("csukuangfj/sherpa-onnx-pyannote-segmentation-3-0", "model.onnx"), d / "segmentation.onnx")
 if not (d / "embedding.onnx").exists():
-    urllib.request.urlretrieve(f"{gh}/speaker-recongition-models/nemo_en_titanet_small.onnx", d / "embedding.onnx")
+    shutil.copy(hf_hub_download("csukuangfj/speaker-embedding-models", "nemo_en_titanet_small.onnx"), d / "embedding.onnx")
 PY
 fi
 [ -f "$MODELS/parakeet-tdt-0.6b-v3/encoder-model.int8.onnx" ] || problems+=("Parakeet model not downloaded yet")

@@ -40,11 +40,100 @@ def expected_cuts(edl_path: Path | None, video: Path) -> list[float]:
     return sorted(cuts)
 
 
+def cut_points_check(edl_path: Path, video: Path, must_fix: list, warn: list, ok: list) -> None:
+    """Every segment start/end must fall between words, not inside one (uses the word timestamps)."""
+    from common import ROOT
+    edl = json.loads(edl_path.read_text())
+    tl = video.with_name(video.stem + ".timeline.json")
+    starts = json.loads(tl.read_text())["segments_start"] if tl.exists() else [0] * len(edl["segments"])
+    bad, tight, checked = [], [], 0
+    for seg, o in zip(edl["segments"], starts):
+        tpath = ROOT / "transcripts" / edl["project"] / f"{Path(seg['src']).stem}.json"
+        if not tpath.exists():
+            continue
+        words = json.loads(tpath.read_text())["words"]
+        for edge, t_src, t_out in (("starts", float(seg["in"]), o),
+                                   ("ends", float(seg["out"]), o + float(seg["out"]) - float(seg["in"]))):
+            checked += 1
+            for w in words:
+                if w["s"] + 0.03 < t_src < w["e"] - 0.03:
+                    bad.append(f"{fmt_time(t_out)}: segment {edge} inside the word “{w['w']}” ({seg['src']} @ {t_src:.2f}s)")
+                    break
+                gap = (w["s"] - t_src) if edge == "starts" else (t_src - w["e"])
+                if 0 <= gap < 0.03 and ((edge == "starts" and w["s"] >= t_src) or (edge == "ends" and w["e"] <= t_src)):
+                    tight.append(f"{fmt_time(t_out)} ({w['w']})")
+                    break
+    if bad:
+        must_fix.append("Cuts that chop a word: " + "; ".join(bad[:10]))
+    if tight:
+        warn.append("Cuts very tight to a word (<30 ms, may sound clipped): " + ", ".join(tight[:10]))
+    if checked and not bad:
+        ok.append(f"All {checked} cut points fall between words.")
+
+
+def speech_check(v: Path, edl_path: Path, must_fix: list, warn: list, ok: list) -> None:
+    import difflib
+    import tempfile
+
+    import captions
+    import transcribe
+
+    edl = json.loads(edl_path.read_text())
+    tl = v.with_name(v.stem + ".timeline.json")
+    if not tl.exists():
+        return
+    expected = captions.timeline_words(edl, json.loads(tl.read_text())["segments_start"])
+    if not expected:
+        return
+    norm = lambda t: re.sub(r"[^\w']", "", t.lower())
+    d = tempfile.TemporaryDirectory()
+    wav = Path(d.name) / "out.wav"
+    transcribe.extract_wav(v, wav)
+    asr = transcribe.load_asr()
+    heard = [w for seg in asr.recognize(str(wav)) for w in transcribe.words_from_segment(seg)]
+
+    def heard_alone(s: float, e: float, words: list[str]) -> bool:
+        """Listen again to just this moment: long chunks can make the model skip a phrase that is there."""
+        import soundfile as sf
+        audio, sr = sf.read(str(wav), dtype="float32")
+        clip = audio[max(int((s - 0.4) * sr), 0):int((e + 0.4) * sr)]
+        text = " ".join(r.text for r in asr.recognize(clip))
+        got = {norm(x) for x in text.split()}
+        return sum(norm(w) in got for w in words) >= 0.7 * len(words)
+
+    a_, b_ = [norm(w["w"]) for w in expected], [norm(w["w"]) for w in heard]
+    sm = difflib.SequenceMatcher(None, a_, b_, autojunk=False)
+    missing, offsets = [], []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            offsets += [heard[j]["s"] - expected[i]["s"] for i, j in zip(range(i1, i2), range(j1, j2))]
+        elif tag in ("delete", "replace") and i2 - i1 >= 1:
+            gone = " ".join(w["w"] for w in expected[i1:i2])
+            if (tag == "delete" or (i2 - i1) > 2 * max(j2 - j1, 1)) and not heard_alone(
+                    expected[i1]["s"], expected[i2 - 1]["e"], [w["w"] for w in expected[i1:i2]]):
+                missing.append(f"{fmt_time(expected[i1]['s'])} “{gone[:80]}”")
+    d.cleanup()
+    match = sum(n for *_, n in sm.get_matching_blocks()) / max(len(a_), 1)
+    if missing:
+        (must_fix if len(missing) > 2 or match < 0.85 else warn).append(
+            "Words in the plan not heard in the output (clipped cut?): " + "; ".join(missing[:8]))
+    if offsets:
+        offsets.sort()
+        med = offsets[len(offsets) // 2]
+        spread = offsets[int(len(offsets) * 0.9)] - offsets[int(len(offsets) * 0.1)]
+        if abs(med) > 0.15 or spread > 0.4:
+            must_fix.append(f"Speech is out of place: words land {med * 1000:+.0f} ms from where the plan puts them "
+                            f"(spread {spread * 1000:.0f} ms) — audio sync problem.")
+        else:
+            ok.append(f"Speech re-checked: {match * 100:.0f}% of planned words heard, in place (offset {med * 1000:+.0f} ms).")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
     ap.add_argument("--edl")
     ap.add_argument("--preview", action="store_true")
+    ap.add_argument("--no-speech-check", action="store_true")
     a = ap.parse_args()
     v = Path(a.video).resolve()
     must_fix, warn, ok = [], [], []
@@ -128,6 +217,16 @@ def main() -> None:
     if peak and peak[-1] != "-inf":
         tp = float(peak[-1])
         (ok if tp <= -1.0 else must_fix).append(f"True peak {tp:.1f} dBFS (must be ≤ −1).")
+
+    # Speech check: re-transcribe the output and compare with the words the plan keeps
+    # (catches clipped/missing words and audio drifting out of place).
+    if a.edl:
+        cut_points_check(Path(a.edl), v, must_fix, warn, ok)
+    if a.edl and not a.no_speech_check:
+        try:
+            speech_check(v, Path(a.edl), must_fix, warn, ok)
+        except Exception as e:  # model missing etc. — never block QC on the checker itself
+            warn.append(f"Speech check skipped ({type(e).__name__}: {str(e)[:120]}).")
 
     # Contact sheet for a visual once-over.
     step = max(dur / 24, 1)
